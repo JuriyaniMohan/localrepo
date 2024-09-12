@@ -1,0 +1,69 @@
+---
+ - name: FS creation
+   hosts: localhost
+   become: yes
+   gather_facts: yes
+
+   vars:
+
+    vg_name: testvg
+    lv_name: testlv
+    dir_name: /bottle
+
+   tasks:
+     - name: Cheking if disk is added
+       shell: lsblk -n -o NAME,TYPE | awk '$2 == "disk" {print "/dev/" $1}' | xargs -I {} sh -c 'lsblk -no NAME,TYPE {} | grep -q "part" || echo {}'
+       register: disk_check
+
+     - name: Disk not found
+       debug:
+         msg: No available disk for creating FS, please add the disk.
+       when: disk_check.rc == 0
+
+     - name: format the disk
+       shell: pvcreate {{ disk_check.stdout }}
+       register: pv_out
+
+     - name: picking out device detail
+       set_fact:
+         pv_device: "{{ disk_check.stdout | trim }}"
+
+     - name: print pv
+       debug:
+         msg: pv create {{ pv_out }}
+
+     - name: creating volume group
+       lvg:
+          vg: "{{ vg_name }}"
+          pvs:
+            - "{{ pv_device }}"
+          state: present
+       register: vg_creation
+
+     - name: creating a lv
+       lvol:
+         vg: "{{ vg_name }}"
+         lv: "{{ lv_name }}"
+         size: 1G
+       when: vg_creation.changed == true
+       register: lv_creation
+
+     - name: format the Lv
+       filesystem:
+         fstype: xfs
+         dev: "/dev/{{ vg_name }}/{{ lv_name }}"
+       register: format_disk
+
+     - name: create a mount point
+       file:
+        path: "{{ dir_name }}"
+        state: directory
+       register: dir_creation
+
+     - name: mount the FS
+       mount:
+         path: "{{ dir_name }}"
+         src:  "/dev/{{ vg_name }}/{{ lv_name }}"
+         fstype: xfs
+         state: mounted
+       when: dir_creation.changed == true
