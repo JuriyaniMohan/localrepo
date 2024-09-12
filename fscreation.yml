@@ -1,6 +1,6 @@
 ---
  - name: FS creation
-   hosts: localhost
+   hosts: all
    become: yes
    gather_facts: yes
 
