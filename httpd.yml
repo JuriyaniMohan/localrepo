@@ -1,0 +1,16 @@
+---
+- name: Build and configure web server
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Install Apache HTTP server
+      dnf:
+        name: httpd
+        state: present
+
+    - name: Start Apache service
+      service:
+        name: httpd
+        state: started
+        enabled: yes
